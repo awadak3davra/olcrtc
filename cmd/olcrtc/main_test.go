@@ -42,6 +42,43 @@ func TestRunWithArgsRequiresConfig(t *testing.T) {
 	}
 }
 
+func TestIsVersionArg(t *testing.T) {
+	for _, arg := range versionArgs() {
+		if !isVersionArg(arg) {
+			t.Errorf("isVersionArg(%q) = false, want true", arg)
+		}
+	}
+
+	for _, arg := range []string{"", "gen", "config.yaml", "-h", "--help", "ver"} {
+		if isVersionArg(arg) {
+			t.Errorf("isVersionArg(%q) = true, want false", arg)
+		}
+	}
+}
+
+func TestVersionString(t *testing.T) {
+	origVersion, origCommit := version, commit
+	defer func() { version, commit = origVersion, origCommit }()
+
+	version, commit = "2026.07.23", "2f2db04"
+	if got, want := versionString(), "olcrtc 2026.07.23 (2f2db04)"; got != want {
+		t.Errorf("versionString() = %q, want %q", got, want)
+	}
+
+	version, commit = "dev", ""
+	if got, want := versionString(), "olcrtc dev"; got != want {
+		t.Errorf("versionString() unstamped = %q, want %q", got, want)
+	}
+}
+
+func TestRunWithArgsVersionReturnsNil(t *testing.T) {
+	for _, arg := range versionArgs() {
+		if err := runWithArgs([]string{arg}); err != nil {
+			t.Fatalf("runWithArgs(%q) = %v, want nil", arg, err)
+		}
+	}
+}
+
 func TestRunGenModeValidationErrors(t *testing.T) {
 	session.RegisterDefaults()
 

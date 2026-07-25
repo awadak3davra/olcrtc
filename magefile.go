@@ -35,6 +35,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
@@ -305,6 +306,13 @@ func Clean() error {
 // Helpers (unexported, not visible as targets)
 // ─────────────────────────────────────────────────────────────────────────────
 
+// versionLdflags stamps the build banner for local `mage build`: the current UTC date as the
+// version and a "dev" commit marker (so it's distinguishable from a release, which overrides
+// main.version/main.commit with the upstream sync date + sha — see the nightly-sync-build workflow).
+func versionLdflags() string {
+	return fmt.Sprintf("-X main.version=%s -X main.commit=dev", time.Now().UTC().Format("2006.01.02"))
+}
+
 func buildBinary(name, pkg, os_, arch string) error {
 	if err := ensureBuildDir(); err != nil {
 		return err
@@ -324,7 +332,7 @@ func buildBinary(name, pkg, os_, arch string) error {
 		"CGO_ENABLED": "0",
 	}
 
-	flags := ldflags
+	flags := ldflags + " " + versionLdflags()
 	if os_ == "android" {
 		flags += " -checklinkname=0"
 	}

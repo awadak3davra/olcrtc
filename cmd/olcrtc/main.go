@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"syscall"
 	"time"
 
@@ -44,6 +45,17 @@ var runSession = session.Run
 //nolint:gochecknoglobals // Tests replace gen runner with a stub.
 var runGen = execGen
 
+// version and commit are build-stamped identifiers, overridden at release time via
+// -ldflags "-X main.version=<YYYY.MM.DD> -X main.commit=<upstream-short-sha>". They default
+// to "dev"/"" for un-stamped local builds. `olcrtc version` prints them so an orchestrator
+// (e.g. the WayHop updater) can report which build is installed.
+//
+//nolint:gochecknoglobals // build-stamped identifiers set via -ldflags.
+var (
+	version = "dev"
+	commit  = ""
+)
+
 // loadedConfig bundles the parsed YAML file and the derived session config.
 type loadedConfig struct {
 	scfg       session.Config
@@ -71,6 +83,13 @@ func run() error {
 }
 
 func runWithArgs(args []string) error {
+	// Handle `version` before any logging/session setup so the banner is the only stdout output.
+	if len(args) == 1 && isVersionArg(args[0]) {
+		printVersion()
+
+		return nil
+	}
+
 	logger.DisableNoisyPionLogs()
 	installStderrFilter()
 	session.RegisterDefaults()
@@ -84,6 +103,32 @@ func runWithArgs(args []string) error {
 		return err
 	}
 	return runWithConfig(cfg)
+}
+
+// versionArgs are the CLI args that request the version banner — the single source of truth,
+// shared with the tests so the accepted set can't silently drift.
+func versionArgs() []string {
+	return []string{"version", "--version", "-version", "-v", "-V"}
+}
+
+// isVersionArg reports whether arg requests the version banner.
+func isVersionArg(arg string) bool {
+	return slices.Contains(versionArgs(), arg)
+}
+
+// versionString is the build banner, e.g. "olcrtc 2026.07.23 (2f2db04)" (or "olcrtc dev" for
+// an un-stamped build). The date is what the WayHop updater parses and surfaces.
+func versionString() string {
+	if commit != "" {
+		return fmt.Sprintf("olcrtc %s (%s)", version, commit)
+	}
+
+	return "olcrtc " + version
+}
+
+// printVersion writes the build banner to stdout (Fprintln, not fmt.Print*, per forbidigo).
+func printVersion() {
+	_, _ = fmt.Fprintln(os.Stdout, versionString())
 }
 
 func loadConfig(path string) (loadedConfig, error) {
